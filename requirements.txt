@@ -1,0 +1,4 @@
+mcp>=2.0.0
+pyelftools>=0.31
+capstone>=5.0
+anyio
