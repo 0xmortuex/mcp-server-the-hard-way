@@ -54,4 +54,17 @@ hard-coding them.
 recogniser compares against `fp_name`/`sp_name` rather than the literal `"ebp"`, so the same
 code reads `push rbp; mov rbp, rsp`.
 
+## Challenge 6: The Line After the Call
+
+Add source lines to this module's backtrace using `05-symbols-and-source-lines`' line
+table, but look up each frame's *return address* directly. Break on `add` and compare
+the `_start` frame with `boot.s`. Then make a C function whose call is the last statement
+on its line, followed by a different statement, and watch the caller frame land on the
+wrong line.
+
+**Hint:** Look up `return_address - 1` for every frame except #0, but print the real
+return address. If the `call` is the very last instruction of a `noreturn` function,
+`return_address` doesn't even belong to the same function, and the `- 1` fixes the
+*symbol* too, not just the line.
+
 → [Next: Module 07](../07-designing-tools-for-an-agent/README.md)
