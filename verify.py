@@ -45,6 +45,25 @@ def free_port() -> int:
     return port
 
 
+def wait_for_stub(port: int, vm: subprocess.Popen[bytes], timeout: float = 30.0) -> None:
+    """Block until QEMU's gdbstub accepts connections.
+
+    QEMU opens the port a moment after it starts - longer on a loaded CI
+    runner - and the modules connect exactly once. Connecting and closing is
+    harmless (Module 01): QEMU treats it as a debugger that attached and left.
+    """
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if vm.poll() is not None:
+            raise RuntimeError(f"QEMU exited with code {vm.returncode} before opening the gdbstub")
+        try:
+            with socket.create_connection(("127.0.0.1", port), timeout=1):
+                return
+        except OSError:
+            time.sleep(0.1)
+    raise RuntimeError(f"QEMU's gdbstub never opened port {port} within {timeout}s")
+
+
 def run_module(qemu: str, module: str) -> tuple[bool, str, float]:
     script = os.path.join(ROOT, module, "main.py")
     port = free_port()
@@ -57,6 +76,7 @@ def run_module(qemu: str, module: str) -> tuple[bool, str, float]:
         )
         start = time.monotonic()
         try:
+            wait_for_stub(port, vm)
             proc = subprocess.run(
                 [sys.executable, script, "--port", str(port), "--elf", ELF, "--log", log],
                 capture_output=True, text=True, timeout=120, cwd=os.path.join(ROOT, module),
