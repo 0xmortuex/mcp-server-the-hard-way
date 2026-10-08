@@ -10,7 +10,7 @@ backtrace:
 #0  0x100029 <add+0x9>      at kernel.c:10
 #1  0x100071 <compute+0x31> at kernel.c:16
 #2  0x1000b2 <kmain+0x12>   at kernel.c:28
-#3  0x100016 <_start+0xa>   at boot.s:22
+#3  0x100016 <_start+0xa>   at boot.s:21
 ```
 
 The CPU doesn't keep a call stack for you. It has a stack pointer, and `call` pushes a
@@ -138,6 +138,28 @@ code refuses to apply the fix rather than guessing. With the fix:
 Real debuggers go further and read DWARF's `.debug_frame` call-frame information, which
 describes the stack layout at *every* instruction. That's the right long-term answer, and
 far more code than these 20 lines.
+
+## Return Address Minus One
+
+A return address is the instruction *after* the `call`. If you look up its source line
+directly, you get the line after the call, and sometimes a different function entirely.
+In the test kernel, `_start` does:
+
+```
+21      call kmain
+22  1:  hlt
+```
+
+The return address `0x100016` is the `hlt`, so a naive lookup prints `boot.s:22`. The
+caller is actually sitting on line 21. gdbstub-mcp shipped with exactly this bug. Its
+first README printed `boot.s:22`, and nobody noticed, because in C code compiled with
+`-O0` the instruction after a call usually still belongs to the same line. That is the
+case for `counter += compute(5)`.
+
+The fix is the same one gdb uses. For every frame except #0, look up the symbol and line
+at `return_address - 1`, which is the last byte of the `call` itself, while still
+*printing* the real return address. Frame #0 is different: it's the current pc, not a
+return address, so it gets no adjustment.
 
 ## Stack Scanning: When There Are No Frame Pointers
 
